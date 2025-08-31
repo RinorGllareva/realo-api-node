@@ -55,42 +55,37 @@ export async function PostProperty(req, res) {
 
     try {
       const request = new sql.Request(tx);
+
       const insert = await request
-        .input("Title", sql.NVarChar(200), p.title)
-        .input("Description", sql.NVarChar(sql.MAX), p.description)
-        .input("Address", sql.NVarChar(255), p.address)
-        .input("City", sql.NVarChar(100), p.city)
-        .input("PropertyType", sql.NVarChar(50), p.propertyType)
+        .input("Title", sql.NVarChar(200), p.title ?? "")
+        .input("Description", sql.NVarChar(sql.MAX), p.description ?? "")
+        .input("Address", sql.NVarChar(255), p.address ?? "")
+        .input("City", sql.NVarChar(100), p.city ?? "")
+        .input("PropertyType", sql.NVarChar(50), p.propertyType ?? "")
         .input("IsForSale", sql.Bit, !!p.isForSale)
         .input("IsForRent", sql.Bit, !!p.isForRent)
-        .input("Price", sql.NVarChar(100), p.price) // keep NVARCHAR if your DB column is NVARCHAR
-        .input("Bedrooms", sql.Int, p.bedrooms ?? 0)
-        .input("Bathrooms", sql.Int, p.bathrooms ?? 0)
-        .input("SquareFeet", sql.Int, p.squareFeet ?? 0)
-        .input("Furniture", sql.NVarChar(100), p.furniture)
+        .input("Price", sql.NVarChar(100), String(p.price ?? "")) // Price is NVARCHAR
+        .input("Bedrooms", sql.Int, Number(p.bedrooms) || 0)
+        .input("Bathrooms", sql.Int, Number(p.bathrooms) || 0)
+        .input("SquareFeet", sql.Int, Number(p.squareFeet) || 0)
         .input("HasOwnershipDocument", sql.Bit, !!p.hasOwnershipDocument)
-        .input("Latitude", sql.Float, p.latitude ?? 0)
-        .input("Longitude", sql.Float, p.longitude ?? 0).query(`
+        .input("Furniture", sql.NVarChar(100), p.furniture ?? "")
+        .input("Latitude", sql.Float, Number(p.latitude) || 0)
+        .input("Longitude", sql.Float, Number(p.longitude) || 0).query(`
           INSERT INTO Properties
-          (Title, Description, Address, City, PropertyType, IsForSale, IsForRent, Price,
-           Bedrooms, Bathrooms, SquareFeet, Furniture, HasOwnershipDocument, Latitude, Longitude)
+            (Title, Description, Address, City, PropertyType, IsForSale, IsForRent,
+             Price, Bedrooms, Bathrooms, SquareFeet, HasOwnershipDocument, Furniture,
+             Latitude, Longitude)
           OUTPUT INSERTED.PropertyId
-          VALUES (@Title, @Description, @Address, @City, @PropertyType, @IsForSale, @IsForRent, @Price,
-                  @Bedrooms, @Bathrooms, @SquareFeet, @Furniture, @HasOwnershipDocument, @Latitude, @Longitude)
+          VALUES
+            (@Title, @Description, @Address, @City, @PropertyType, @IsForSale, @IsForRent,
+             @Price, @Bedrooms, @Bathrooms, @SquareFeet, @HasOwnershipDocument, @Furniture,
+             @Latitude, @Longitude)
         `);
 
       const newId = insert.recordset[0].PropertyId;
 
-      if (Array.isArray(p.images) && p.images.length) {
-        for (const url of p.images) {
-          await new sql.Request(tx)
-            .input("PropertyId", sql.Int, newId)
-            .input("ImageUrl", sql.NVarChar(1000), String(url))
-            .query(
-              `INSERT INTO PropertiesImage (ImageUrl, PropertyId) VALUES (@ImageUrl, @PropertyId)`
-            );
-        }
-      }
+      // (optional) insert images here if you send them in the request…
 
       await tx.commit();
       res.status(200).json({ message: "OK", propertyId: newId });
@@ -99,11 +94,8 @@ export async function PostProperty(req, res) {
       throw err;
     }
   } catch (err) {
-    console.error("PostProperty error:", err?.originalError?.info || err);
-    res.status(500).json({
-      error: "Server error",
-      detail: err?.originalError?.info?.message || err.message,
-    });
+    console.error("PostProperty error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 }
 
@@ -113,43 +105,49 @@ export async function PutProperty(req, res) {
   if (!id) return res.status(400).json({ error: "Invalid id" });
 
   const p = req.body;
-
   try {
     const pool = await getPool();
     await pool
       .request()
       .input("PropertyId", sql.Int, id)
-      .input("Title", sql.NVarChar(200), p.title)
-      .input("Description", sql.NVarChar(sql.MAX), p.description)
-      .input("Address", sql.NVarChar(255), p.address)
-      .input("City", sql.NVarChar(100), p.city)
-      .input("PropertyType", sql.NVarChar(50), p.propertyType)
+      .input("Title", sql.NVarChar(200), p.title ?? "")
+      .input("Description", sql.NVarChar(sql.MAX), p.description ?? "")
+      .input("Address", sql.NVarChar(255), p.address ?? "")
+      .input("City", sql.NVarChar(100), p.city ?? "")
+      .input("PropertyType", sql.NVarChar(50), p.propertyType ?? "")
       .input("IsForSale", sql.Bit, !!p.isForSale)
       .input("IsForRent", sql.Bit, !!p.isForRent)
-      .input("Price", sql.NVarChar(100), p.price)
-      .input("Bedrooms", sql.Int, p.bedrooms ?? 0)
-      .input("Bathrooms", sql.Int, p.bathrooms ?? 0)
-      .input("SquareFeet", sql.Int, p.squareFeet ?? 0)
-      .input("Furniture", sql.NVarChar(100), p.furniture)
+      .input("Price", sql.NVarChar(100), String(p.price ?? ""))
+      .input("Bedrooms", sql.Int, Number(p.bedrooms) || 0)
+      .input("Bathrooms", sql.Int, Number(p.bathrooms) || 0)
+      .input("SquareFeet", sql.Int, Number(p.squareFeet) || 0)
       .input("HasOwnershipDocument", sql.Bit, !!p.hasOwnershipDocument)
-      .input("Latitude", sql.Float, p.latitude ?? 0)
-      .input("Longitude", sql.Float, p.longitude ?? 0).query(`
+      .input("Furniture", sql.NVarChar(100), p.furniture ?? "")
+      .input("Latitude", sql.Float, Number(p.latitude) || 0)
+      .input("Longitude", sql.Float, Number(p.longitude) || 0).query(`
         UPDATE Properties SET
-          Title=@Title, Description=@Description, Address=@Address, City=@City,
-          PropertyType=@PropertyType, IsForSale=@IsForSale, IsForRent=@IsForRent, Price=@Price,
-          Bedrooms=@Bedrooms, Bathrooms=@Bathrooms, SquareFeet=@SquareFeet,
-          Furniture=@Furniture, HasOwnershipDocument=@HasOwnershipDocument,
-          Latitude=@Latitude, Longitude=@Longitude
+          Title=@Title,
+          Description=@Description,
+          Address=@Address,
+          City=@City,
+          PropertyType=@PropertyType,
+          IsForSale=@IsForSale,
+          IsForRent=@IsForRent,
+          Price=@Price,
+          Bedrooms=@Bedrooms,
+          Bathrooms=@Bathrooms,
+          SquareFeet=@SquareFeet,
+          HasOwnershipDocument=@HasOwnershipDocument,
+          Furniture=@Furniture,
+          Latitude=@Latitude,
+          Longitude=@Longitude
         WHERE PropertyId=@PropertyId
       `);
 
     res.json({ message: "Property updated successfully!" });
   } catch (err) {
-    console.error("PutProperty error:", err?.originalError?.info || err);
-    res.status(500).json({
-      error: "Server error",
-      detail: err?.originalError?.info?.message || err.message,
-    });
+    console.error("PutProperty error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 }
 
