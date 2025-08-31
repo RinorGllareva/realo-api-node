@@ -60,53 +60,35 @@ export async function PostProperty(req, res) {
         .input("Description", sql.NVarChar(sql.MAX), p.description)
         .input("Address", sql.NVarChar(255), p.address)
         .input("City", sql.NVarChar(100), p.city)
-        .input("State", sql.NVarChar(100), p.state)
-        .input("ZipCode", sql.NVarChar(50), p.zipCode)
         .input("PropertyType", sql.NVarChar(50), p.propertyType)
         .input("IsForSale", sql.Bit, !!p.isForSale)
         .input("IsForRent", sql.Bit, !!p.isForRent)
-        .input("Price", sql.NVarChar(100), p.price) // string in your model
+        .input("Price", sql.NVarChar(100), p.price) // keep NVARCHAR if your DB column is NVARCHAR
         .input("Bedrooms", sql.Int, p.bedrooms ?? 0)
         .input("Bathrooms", sql.Int, p.bathrooms ?? 0)
         .input("SquareFeet", sql.Int, p.squareFeet ?? 0)
-        .input("IsAvailable", sql.Bit, !!p.isAvailable)
-        .input("Orientation", sql.NVarChar(50), p.orientation)
         .input("Furniture", sql.NVarChar(100), p.furniture)
-        .input("HeatingSystem", sql.NVarChar(100), p.heatingSystem)
-        .input(
-          "AdditionalFeatures",
-          sql.NVarChar(sql.MAX),
-          p.additionalFeatures
-        )
         .input("HasOwnershipDocument", sql.Bit, !!p.hasOwnershipDocument)
-        .input("Spaces", sql.Int, p.spaces ?? 0)
-        .input("FloorLevel", sql.NVarChar(50), p.floorLevel)
-        .input("Country", sql.NVarChar(100), p.country)
-        .input("Neighborhood", sql.NVarChar(100), p.neighborhood)
-        .input("Builder", sql.NVarChar(100), p.builder)
-        .input("Complex", sql.NVarChar(100), p.complex)
         .input("Latitude", sql.Float, p.latitude ?? 0)
-        .input("Longitude", sql.Float, p.longitude ?? 0)
-        .input("ExteriorVideo", sql.NVarChar(500), p.exteriorVideo)
-        .input("InteriorVideo", sql.NVarChar(500), p.interiorVideo).query(`
+        .input("Longitude", sql.Float, p.longitude ?? 0).query(`
           INSERT INTO Properties
-          (Title,Description,Address,City,State,ZipCode,PropertyType,IsForSale,IsForRent,Price,Bedrooms,Bathrooms,SquareFeet,IsAvailable,Orientation,Furniture,HeatingSystem,AdditionalFeatures,HasOwnershipDocument,Spaces,FloorLevel,Country,Neighborhood,Builder,Complex,Latitude,Longitude,ExteriorVideo,InteriorVideo)
+          (Title, Description, Address, City, PropertyType, IsForSale, IsForRent, Price,
+           Bedrooms, Bathrooms, SquareFeet, Furniture, HasOwnershipDocument, Latitude, Longitude)
           OUTPUT INSERTED.PropertyId
-          VALUES (@Title,@Description,@Address,@City,@State,@ZipCode,@PropertyType,@IsForSale,@IsForRent,@Price,@Bedrooms,@Bathrooms,@SquareFeet,@IsAvailable,@Orientation,@Furniture,@HeatingSystem,@AdditionalFeatures,@HasOwnershipDocument,@Spaces,@FloorLevel,@Country,@Neighborhood,@Builder,@Complex,@Latitude,@Longitude,@ExteriorVideo,@InteriorVideo)
+          VALUES (@Title, @Description, @Address, @City, @PropertyType, @IsForSale, @IsForRent, @Price,
+                  @Bedrooms, @Bathrooms, @SquareFeet, @Furniture, @HasOwnershipDocument, @Latitude, @Longitude)
         `);
 
       const newId = insert.recordset[0].PropertyId;
 
-      // If you plan to pass images in the same request (array of urls)
       if (Array.isArray(p.images) && p.images.length) {
-        const req2 = new sql.Request(tx).input("PropertyId", sql.Int, newId);
         for (const url of p.images) {
-          await req2
-            .input("ImageUrl", sql.NVarChar(1000), url)
+          await new sql.Request(tx)
+            .input("PropertyId", sql.Int, newId)
+            .input("ImageUrl", sql.NVarChar(1000), String(url))
             .query(
               `INSERT INTO PropertiesImage (ImageUrl, PropertyId) VALUES (@ImageUrl, @PropertyId)`
             );
-          req2.parameters = { PropertyId: req2.parameters.PropertyId }; // reset ImageUrl param
         }
       }
 
@@ -117,8 +99,11 @@ export async function PostProperty(req, res) {
       throw err;
     }
   } catch (err) {
-    console.error("PostProperty error:", err);
-    res.status(500).json({ error: "Server error" });
+    console.error("PostProperty error:", err?.originalError?.info || err);
+    res.status(500).json({
+      error: "Server error",
+      detail: err?.originalError?.info?.message || err.message,
+    });
   }
 }
 
@@ -131,16 +116,13 @@ export async function PutProperty(req, res) {
 
   try {
     const pool = await getPool();
-    const request = pool.request().input("PropertyId", sql.Int, id);
-
-    // Update property
-    await request
+    await pool
+      .request()
+      .input("PropertyId", sql.Int, id)
       .input("Title", sql.NVarChar(200), p.title)
       .input("Description", sql.NVarChar(sql.MAX), p.description)
       .input("Address", sql.NVarChar(255), p.address)
       .input("City", sql.NVarChar(100), p.city)
-      .input("State", sql.NVarChar(100), p.state)
-      .input("ZipCode", sql.NVarChar(50), p.zipCode)
       .input("PropertyType", sql.NVarChar(50), p.propertyType)
       .input("IsForSale", sql.Bit, !!p.isForSale)
       .input("IsForRent", sql.Bit, !!p.isForRent)
@@ -148,36 +130,26 @@ export async function PutProperty(req, res) {
       .input("Bedrooms", sql.Int, p.bedrooms ?? 0)
       .input("Bathrooms", sql.Int, p.bathrooms ?? 0)
       .input("SquareFeet", sql.Int, p.squareFeet ?? 0)
-      .input("IsAvailable", sql.Bit, !!p.isAvailable)
-      .input("Orientation", sql.NVarChar(50), p.orientation)
       .input("Furniture", sql.NVarChar(100), p.furniture)
-      .input("HeatingSystem", sql.NVarChar(100), p.heatingSystem)
-      .input("AdditionalFeatures", sql.NVarChar(sql.MAX), p.additionalFeatures)
       .input("HasOwnershipDocument", sql.Bit, !!p.hasOwnershipDocument)
-      .input("Spaces", sql.Int, p.spaces ?? 0)
-      .input("FloorLevel", sql.NVarChar(50), p.floorLevel)
-      .input("Country", sql.NVarChar(100), p.country)
-      .input("Neighborhood", sql.NVarChar(100), p.neighborhood)
-      .input("Builder", sql.NVarChar(100), p.builder)
-      .input("Complex", sql.NVarChar(100), p.complex)
       .input("Latitude", sql.Float, p.latitude ?? 0)
-      .input("Longitude", sql.Float, p.longitude ?? 0)
-      .input("ExteriorVideo", sql.NVarChar(500), p.exteriorVideo)
-      .input("InteriorVideo", sql.NVarChar(500), p.interiorVideo).query(`
+      .input("Longitude", sql.Float, p.longitude ?? 0).query(`
         UPDATE Properties SET
-          Title=@Title, Description=@Description, Address=@Address, City=@City, State=@State, ZipCode=@ZipCode,
+          Title=@Title, Description=@Description, Address=@Address, City=@City,
           PropertyType=@PropertyType, IsForSale=@IsForSale, IsForRent=@IsForRent, Price=@Price,
-          Bedrooms=@Bedrooms, Bathrooms=@Bathrooms, SquareFeet=@SquareFeet, IsAvailable=@IsAvailable,
-          Orientation=@Orientation, Furniture=@Furniture, HeatingSystem=@HeatingSystem, AdditionalFeatures=@AdditionalFeatures,
-          HasOwnershipDocument=@HasOwnershipDocument, Spaces=@Spaces, FloorLevel=@FloorLevel, Country=@Country, Neighborhood=@Neighborhood,
-          Builder=@Builder, Complex=@Complex, Latitude=@Latitude, Longitude=@Longitude, ExteriorVideo=@ExteriorVideo, InteriorVideo=@InteriorVideo
+          Bedrooms=@Bedrooms, Bathrooms=@Bathrooms, SquareFeet=@SquareFeet,
+          Furniture=@Furniture, HasOwnershipDocument=@HasOwnershipDocument,
+          Latitude=@Latitude, Longitude=@Longitude
         WHERE PropertyId=@PropertyId
       `);
 
     res.json({ message: "Property updated successfully!" });
   } catch (err) {
-    console.error("PutProperty error:", err);
-    res.status(500).json({ error: "Server error" });
+    console.error("PutProperty error:", err?.originalError?.info || err);
+    res.status(500).json({
+      error: "Server error",
+      detail: err?.originalError?.info?.message || err.message,
+    });
   }
 }
 
