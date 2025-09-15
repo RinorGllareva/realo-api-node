@@ -231,11 +231,12 @@ export async function UpdatePropertyImages(req, res) {
     await tx.begin();
 
     try {
-      const r1 = new sql.Request(tx).input("propertyId", sql.Int, propertyId);
-      await r1.query(
-        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId`
-      );
+      // delete ALL existing images (that’s intended for bulk update)
+      await new sql.Request(tx)
+        .input("propertyId", sql.Int, propertyId)
+        .query(`DELETE FROM PropertiesImage WHERE PropertyId=@propertyId`);
 
+      // re-insert the new list
       if (urls.length) {
         for (const u of urls) {
           await new sql.Request(tx)
