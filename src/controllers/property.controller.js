@@ -233,7 +233,8 @@ export async function UpdatePropertyImages(req, res) {
     try {
       const r1 = new sql.Request(tx).input("propertyId", sql.Int, propertyId);
       await r1.query(
-        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId`
+        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId AND ImageId=@imageId
+`
       );
 
       if (urls.length) {
