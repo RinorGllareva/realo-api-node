@@ -233,8 +233,7 @@ export async function UpdatePropertyImages(req, res) {
     try {
       const r1 = new sql.Request(tx).input("propertyId", sql.Int, propertyId);
       await r1.query(
-        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId AND ImageId=@imageId
-`
+        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId`
       );
 
       if (urls.length) {
@@ -273,9 +272,7 @@ export async function DeletePropertyImage(req, res) {
       .request()
       .input("propertyId", sql.Int, propertyId)
       .input("imageId", sql.Int, imageId)
-      .query(
-        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId AND ImageId=@imageId`
-      );
+      .query(`DELETE FROM PropertiesImage WHERE PropertyId=@propertyId`);
 
     // rowsAffected is array per statement; sum to check >0
     const affected = result.rowsAffected?.reduce((a, b) => a + b, 0) ?? 0;
