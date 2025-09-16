@@ -79,34 +79,31 @@ router.get("/properties/:slug/:id", async (req, res) => {
       ? property.ImageUrl
       : "https://www.realo-realestate.com/og.png";
 
-    res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>${property.Title}</title>
-  <meta name="description" content="${property.Description || ""}" />
+    res.send(`
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>${property.Title}</title>
+    <meta name="description" content="${property.Description || ""}" />
 
-  <!-- Open Graph -->
-  <meta property="og:title" content="${property.Title}" />
-  <meta property="og:description" content="${property.Description || ""}" />
-  <meta property="og:image" content="${imageUrl}" />
-  <meta property="og:url" content="${pageUrl}" />  <!-- points to frontend -->
-  <meta property="og:type" content="article" />
-  <meta property="fb:app_id" content="2028894777883605" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="${property.Title}" />
-  <meta name="twitter:description" content="${property.Description || ""}" />
-  <meta name="twitter:image" content="${imageUrl}" />
-</head>
-<body>
-  <h1>${property.Title}</h1>
-  <p>${property.Description || ""}</p>
-</body>
-</html>`);
+    <!-- Open Graph -->
+    <meta property="og:title" content="${property.Title}" />
+    <meta property="og:description" content="${property.Description || ""}" />
+    <meta property="og:image" content="${imageUrl}" />
+    <meta property="og:url" content="${pageUrl}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="fb:app_id" content="2028894777883605" />
+  </head>
+  <body>
+    <h1>${property.Title}</h1>
+    <p>${property.Description || ""}</p>
+    <img src="${imageUrl}" alt="Property Image" />
+  </body>
+  </html>
+`);
   } catch (err) {
     console.error("OG route error:", err);
     res.status(500).send("Server error");
