@@ -67,6 +67,8 @@ app.use((err, _req, res, _next) => {
   const status = err.message?.startsWith("Not allowed by CORS") ? 403 : 500;
   res.status(status).json({ error: err.message || "Server error" });
 });
+import propertyRoutes from "./routes/property.routes.js";
+app.use("/api/Property", propertyRoutes);
 
 /* --------------------------- start ---------------------------- */
 const PORT = Number(process.env.PORT || 3000);
