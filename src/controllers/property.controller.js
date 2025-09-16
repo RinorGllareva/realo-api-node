@@ -195,23 +195,28 @@ export async function GetPropertyImages(req, res) {
   }
 }
 
-// POST: /api/Property/AddPropertyImage/{propertyId}
+// POST: /api/Property/AddPropertyImage/:propertyId
 export async function AddPropertyImage(req, res) {
   const propertyId = Number(req.params.propertyId);
   const imageUrl = req.body?.imageUrl || req.body; // supports raw string or {imageUrl}
-  if (!propertyId || !imageUrl)
+
+  if (!propertyId || !imageUrl) {
     return res.status(400).json({ error: "Missing propertyId or imageUrl" });
+  }
 
   try {
     const pool = await getPool();
-    await pool
+    const result = await pool
       .request()
       .input("propertyId", sql.Int, propertyId)
-      .input("imageUrl", sql.NVarChar(1000), String(imageUrl))
-      .query(
-        `INSERT INTO PropertiesImage (ImageUrl, PropertyId) VALUES (@imageUrl, @propertyId)`
-      );
-    res.json({ message: "Image added successfully!" });
+      .input("imageUrl", sql.NVarChar(1000), String(imageUrl)).query(`
+        INSERT INTO PropertiesImage (ImageUrl, PropertyId)
+        OUTPUT INSERTED.ImageId, INSERTED.ImageUrl, INSERTED.PropertyId
+        VALUES (@imageUrl, @propertyId)
+      `);
+
+    // return the newly inserted row
+    res.json(result.recordset[0]);
   } catch (err) {
     console.error("AddPropertyImage error:", err);
     res.status(500).json({ error: "Server error" });
@@ -261,9 +266,11 @@ export async function UpdatePropertyImages(req, res) {
 }
 
 // DELETE: /api/Property/DeletePropertyImage/{propertyId}/{imageId}
+// DELETE: /api/Property/DeletePropertyImage/{propertyId}/{imageId}
 export async function DeletePropertyImage(req, res) {
   const propertyId = Number(req.params.propertyId);
   const imageId = Number(req.params.imageId);
+
   if (!propertyId || !imageId)
     return res.status(400).json({ error: "Invalid params" });
 
@@ -273,14 +280,15 @@ export async function DeletePropertyImage(req, res) {
       .request()
       .input("propertyId", sql.Int, propertyId)
       .input("imageId", sql.Int, imageId)
-      .query(`DELETE FROM PropertiesImage WHERE PropertyId=@propertyId`);
+      .query(
+        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId AND ImageId=@imageId`
+      );
 
-    // rowsAffected is array per statement; sum to check >0
-    const affected = result.rowsAffected?.reduce((a, b) => a + b, 0) ?? 0;
-    if (affected === 0)
+    if ((result.rowsAffected?.[0] ?? 0) === 0) {
       return res.status(404).json({
         message: "Image not found or does not belong to the property",
       });
+    }
 
     res.json({ message: "Image deleted successfully!" });
   } catch (err) {
