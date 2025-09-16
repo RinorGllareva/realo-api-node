@@ -71,43 +71,35 @@ router.get("/properties/:slug/:id", async (req, res) => {
 
     const property = result.recordset[0];
 
-    // Canonical page URL
-    const pageUrl = `https://realo-realestate.com/properties/${encodeURIComponent(
-      req.params.slug
-    )}/${id}`;
+    // ✅ Proper frontend page URL
+    const pageUrl = `https://realo-realestate.com/properties/${req.params.slug}/${id}`;
 
-    // Build a safe image URL (absolute)
-    let imageUrl = "/og.png"; // fallback
-    if (property.ImageUrl) {
-      imageUrl = property.ImageUrl.startsWith("http")
-        ? property.ImageUrl
-        : `https://realo-realestate.com${property.ImageUrl}`;
-    } else {
-      imageUrl = `https://realo-realestate.com/og.png`;
-    }
+    // ✅ Safe absolute image URL (fallback to og.png)
+    const imageUrl = property.ImageUrl?.startsWith("http")
+      ? property.ImageUrl
+      : `https://realo-realestate.com/og.png`;
 
-    // Return OG tags as HTML (this is what scrapers read)
+    // ✅ Send OG + Twitter tags
     res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>${property.Title || "Property Listing"}</title>
+  <title>${property.Title}</title>
   <meta name="description" content="${property.Description || ""}" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="${property.Title || "Property Listing"}" />
+  <meta property="og:title" content="${property.Title}" />
   <meta property="og:description" content="${property.Description || ""}" />
   <meta property="og:image" content="${imageUrl}" />
   <meta property="og:url" content="${pageUrl}" />
   <meta property="og:type" content="article" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
+  <meta property="fb:app_id" content="2028894777883605" />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="${
-    property.Title || "Property Listing"
-  }" />
+  <meta name="twitter:title" content="${property.Title}" />
   <meta name="twitter:description" content="${property.Description || ""}" />
   <meta name="twitter:image" content="${imageUrl}" />
 </head>
