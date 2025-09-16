@@ -194,6 +194,33 @@ export async function GetPropertyImages(req, res) {
     res.status(500).json({ error: "Server error" });
   }
 }
+// GET: /api/Property/GetPropertyMainImage/{propertyId}
+export async function GetPropertyMainImage(req, res) {
+  const propertyId = Number(req.params.propertyId);
+  if (!propertyId) return res.status(400).json({ error: "Invalid propertyId" });
+
+  try {
+    const pool = await getPool();
+    const result = await pool.request().input("propertyId", sql.Int, propertyId)
+      .query(`
+        SELECT TOP 1 ImageId, ImageUrl, PropertyId
+        FROM PropertiesImage
+        WHERE PropertyId = @propertyId
+        ORDER BY ImageId ASC
+      `);
+
+    if (result.recordset.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No image found for this property" });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (err) {
+    console.error("GetPropertyMainImage error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+}
 
 // POST: /api/Property/AddPropertyImage/:propertyId
 export async function AddPropertyImage(req, res) {

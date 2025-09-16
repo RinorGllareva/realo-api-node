@@ -9,6 +9,7 @@ import {
   AddPropertyImage,
   UpdatePropertyImages,
   DeletePropertyImage,
+  GetPropertyMainImage,
 } from "../controllers/property.controller.js";
 
 import { getPool, sql } from "../db/mssql.js";
@@ -34,6 +35,9 @@ router.delete("/DeleteProperty/:id", DeleteProperty);
 
 // Matches: /api/Property/GetPropertyImages/{propertyId}
 router.get("/GetPropertyImages/:propertyId", GetPropertyImages);
+
+// Matches: /api/Property/GetPropertyMainImage/{propertyId}
+router.get("/GetPropertyMainImage/:propertyId", GetPropertyMainImage);
 
 // Matches: /api/Property/AddPropertyImage/{propertyId}
 router.post("/AddPropertyImage/:propertyId", AddPropertyImage);
@@ -66,45 +70,53 @@ router.get("/properties/:slug/:id", async (req, res) => {
     }
 
     const property = result.recordset[0];
-    const pageUrl = `https://realo-realestate.com/properties/${req.params.slug}/${id}`;
-    const imageUrl =
-      property.ImageUrl && property.ImageUrl.startsWith("http")
+
+    // Canonical page URL
+    const pageUrl = `https://realo-realestate.com/properties/${encodeURIComponent(
+      req.params.slug
+    )}/${id}`;
+
+    // Build a safe image URL (absolute)
+    let imageUrl = "/og.png"; // fallback
+    if (property.ImageUrl) {
+      imageUrl = property.ImageUrl.startsWith("http")
         ? property.ImageUrl
-        : `https://realo-realestate.com${property.ImageUrl || "/og.png"}`;
+        : `https://realo-realestate.com${property.ImageUrl}`;
+    } else {
+      imageUrl = `https://realo-realestate.com/og.png`;
+    }
 
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <title>${property.Title}</title>
-        <meta name="description" content="${property.Description || ""}" />
+    // Return OG tags as HTML (this is what scrapers read)
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${property.Title || "Property Listing"}</title>
+  <meta name="description" content="${property.Description || ""}" />
 
-        <!-- Open Graph -->
-        <meta property="og:title" content="${property.Title}" />
-        <meta property="og:description" content="${
-          property.Description || ""
-        }" />
-        <meta property="og:image" content="${imageUrl}" />
-        <meta property="og:url" content="${pageUrl}" />
-        <meta property="og:type" content="article" />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
+  <!-- Open Graph -->
+  <meta property="og:title" content="${property.Title || "Property Listing"}" />
+  <meta property="og:description" content="${property.Description || ""}" />
+  <meta property="og:image" content="${imageUrl}" />
+  <meta property="og:url" content="${pageUrl}" />
+  <meta property="og:type" content="article" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
 
-        <!-- Twitter -->
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="${property.Title}" />
-        <meta name="twitter:description" content="${
-          property.Description || ""
-        }" />
-        <meta name="twitter:image" content="${imageUrl}" />
-      </head>
-      <body>
-        <div id="root"></div>
-        <script type="module" src="/src/main.tsx"></script>
-      </body>
-      </html>
-    `);
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${
+    property.Title || "Property Listing"
+  }" />
+  <meta name="twitter:description" content="${property.Description || ""}" />
+  <meta name="twitter:image" content="${imageUrl}" />
+</head>
+<body>
+  <h1>${property.Title}</h1>
+  <p>${property.Description || ""}</p>
+  <img src="${imageUrl}" alt="Property Image" />
+</body>
+</html>`);
   } catch (err) {
     console.error("OG route error:", err);
     res.status(500).send("Server error");
