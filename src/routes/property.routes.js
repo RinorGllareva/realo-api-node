@@ -51,7 +51,8 @@ router.delete("/DeletePropertyImage/:propertyId/:imageId", DeletePropertyImage);
 /* ============= SOCIAL PREVIEW ROUTE ============= */
 // Dynamic OG tags so Facebook/LinkedIn/Twitter show property preview
 // Dynamic property page with OG tags
-router.get("/properties/:slug/:id", async (req, res) => {
+// OG endpoint ONLY for scrapers (Facebook, LinkedIn, WhatsApp)
+router.get("/api/og/property/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).send("Invalid property id");
 
@@ -71,39 +72,45 @@ router.get("/properties/:slug/:id", async (req, res) => {
 
     const property = result.recordset[0];
 
-    // ✅ FRONTEND page URL, not backend
-    const pageUrl = `https://www.realo-realestate.com/properties/${req.params.slug}/${id}`;
+    // 👇 point to your FRONTEND property page (React)
+    const pageUrl = `https://www.realo-realestate.com/properties/${encodeURIComponent(
+      property.Title.replace(/\s+/g, "-")
+    )}/${id}`;
 
-    // ✅ Use a valid image (or fallback)
+    // 👇 image fallback
     const imageUrl = property.ImageUrl?.startsWith("http")
       ? property.ImageUrl
-      : "https://www.realo-realestate.com/og.png";
+      : `https://realo-realestate.com/og.png`;
 
-    res.send(`
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>${property.Title}</title>
-    <meta name="description" content="${property.Description || ""}" />
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${property.Title}</title>
+  <meta name="description" content="${property.Description || ""}" />
 
-    <!-- Open Graph -->
-    <meta property="og:title" content="${property.Title}" />
-    <meta property="og:description" content="${property.Description || ""}" />
-    <meta property="og:image" content="${imageUrl}" />
-    <meta property="og:url" content="${pageUrl}" />
-    <meta property="og:type" content="article" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="fb:app_id" content="2028894777883605" />
-  </head>
-  <body>
-    <h1>${property.Title}</h1>
-    <p>${property.Description || ""}</p>
-    <img src="${imageUrl}" alt="Property Image" />
-  </body>
-  </html>
-`);
+  <!-- Open Graph -->
+  <meta property="og:title" content="${property.Title}" />
+  <meta property="og:description" content="${property.Description || ""}" />
+  <meta property="og:image" content="${imageUrl}" />
+  <meta property="og:url" content="${pageUrl}" />
+  <meta property="og:type" content="article" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="fb:app_id" content="2028894777883605" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${property.Title}" />
+  <meta name="twitter:description" content="${property.Description || ""}" />
+  <meta name="twitter:image" content="${imageUrl}" />
+</head>
+<body>
+  <h1>${property.Title}</h1>
+  <p>${property.Description || ""}</p>
+  <img src="${imageUrl}" alt="Property Image" />
+</body>
+</html>`);
   } catch (err) {
     console.error("OG route error:", err);
     res.status(500).send("Server error");
