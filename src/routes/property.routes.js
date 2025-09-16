@@ -46,6 +46,7 @@ router.delete("/DeletePropertyImage/:propertyId/:imageId", DeletePropertyImage);
 
 /* ============= SOCIAL PREVIEW ROUTE ============= */
 // Dynamic OG tags so Facebook/LinkedIn/Twitter show property preview
+// Dynamic property page with OG tags
 router.get("/properties/:slug/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).send("Invalid property id");
@@ -65,7 +66,6 @@ router.get("/properties/:slug/:id", async (req, res) => {
     }
 
     const property = result.recordset[0];
-
     const pageUrl = `https://realo-realestate.com/properties/${req.params.slug}/${id}`;
     const imageUrl =
       property.ImageUrl && property.ImageUrl.startsWith("http")
