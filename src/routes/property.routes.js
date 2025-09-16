@@ -57,7 +57,9 @@ router.get("/properties/:slug/:id", async (req, res) => {
 
   try {
     const pool = await getPool();
-    const result = await pool.request().input("id", sql.Int, id).query(`
+    const result = await pool.request()
+      .input("id", sql.Int, id)
+      .query(`
         SELECT TOP 1 p.Title, p.Description, i.ImageUrl
         FROM Properties p
         LEFT JOIN PropertiesImage i ON p.PropertyId = i.PropertyId
@@ -71,16 +73,15 @@ router.get("/properties/:slug/:id", async (req, res) => {
 
     const property = result.recordset[0];
 
-    // ✅ Proper frontend page URL
-    // ✅ Proper canonical URL for this property (frontend link, not backend loop)
+    // ✅ Always point og:url to the FRONTEND (not backend)
     const pageUrl = `https://www.realo-realestate.com/properties/${req.params.slug}/${id}`;
 
-    // ✅ Safe absolute image URL (fallback to og.png)
-    const imageUrl = property.ImageUrl?.startsWith("http")
+    // ✅ Use absolute image URL with fallback
+    const imageUrl = property.ImageUrl && property.ImageUrl.startsWith("http")
       ? property.ImageUrl
-      : `https://realo-realestate.com/og.png`;
+      : "https://www.realo-realestate.com/og.png";
 
-    // ✅ Send OG + Twitter tags
+    // ✅ Send OG + Twitter tags only
     res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -115,5 +116,6 @@ router.get("/properties/:slug/:id", async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+
 
 export default router;
