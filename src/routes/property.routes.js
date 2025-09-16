@@ -51,26 +51,30 @@ router.delete("/DeletePropertyImage/:propertyId/:imageId", DeletePropertyImage);
 /* ============= SOCIAL PREVIEW ROUTE ============= */
 // Dynamic OG tags so Facebook/LinkedIn/Twitter show property preview
 // Dynamic property page with OG tags
-router.get("/og/property/:id", async (req, res) => {
+router.get("/properties/:slug/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).send("Invalid property id");
 
   try {
     const pool = await getPool();
     const result = await pool.request().input("id", sql.Int, id).query(`
-      SELECT TOP 1 p.Title, p.Description, i.ImageUrl
-      FROM Properties p
-      LEFT JOIN PropertiesImage i ON p.PropertyId = i.PropertyId
-      WHERE p.PropertyId = @id
-      ORDER BY i.ImageId ASC
-    `);
+        SELECT TOP 1 p.Title, p.Description, i.ImageUrl
+        FROM Properties p
+        LEFT JOIN PropertiesImage i ON p.PropertyId = i.PropertyId
+        WHERE p.PropertyId = @id
+        ORDER BY i.ImageId ASC
+      `);
 
     if (result.recordset.length === 0) {
       return res.status(404).send("Property not found");
     }
 
     const property = result.recordset[0];
-    const pageUrl = `https://www.realo-realestate.com/properties/${id}`;
+
+    // ✅ FRONTEND page URL, not backend
+    const pageUrl = `https://www.realo-realestate.com/properties/${req.params.slug}/${id}`;
+
+    // ✅ Use a valid image (or fallback)
     const imageUrl = property.ImageUrl?.startsWith("http")
       ? property.ImageUrl
       : "https://www.realo-realestate.com/og.png";
@@ -86,9 +90,11 @@ router.get("/og/property/:id", async (req, res) => {
   <meta property="og:title" content="${property.Title}" />
   <meta property="og:description" content="${property.Description || ""}" />
   <meta property="og:image" content="${imageUrl}" />
-  <meta property="og:url" content="${pageUrl}" />
+  <meta property="og:url" content="${pageUrl}" />  <!-- points to frontend -->
   <meta property="og:type" content="article" />
   <meta property="fb:app_id" content="2028894777883605" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
@@ -98,6 +104,7 @@ router.get("/og/property/:id", async (req, res) => {
 </head>
 <body>
   <h1>${property.Title}</h1>
+  <p>${property.Description || ""}</p>
 </body>
 </html>`);
   } catch (err) {
