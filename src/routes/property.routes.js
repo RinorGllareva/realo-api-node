@@ -72,7 +72,8 @@ router.get("/properties/:slug/:id", async (req, res) => {
     const property = result.recordset[0];
 
     // ✅ Proper frontend page URL
-    const pageUrl = `https://realo-realestate.com/properties/${req.params.slug}/${id}`;
+    // ✅ Proper canonical URL for this property (frontend link, not backend loop)
+    const pageUrl = `https://www.realo-realestate.com/properties/${req.params.slug}/${id}`;
 
     // ✅ Safe absolute image URL (fallback to og.png)
     const imageUrl = property.ImageUrl?.startsWith("http")
