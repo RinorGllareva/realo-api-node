@@ -101,7 +101,6 @@ export async function ShareProperty(req, res) {
 
     const p = items[0];
 
-    // these keys depend on rowsToProperties output
     const titleRaw = p.title || "Property";
     const city = p.city || "";
     const price = p.price ? String(p.price).trim() : "";
@@ -110,8 +109,6 @@ export async function ShareProperty(req, res) {
         .filter(Boolean)
         .join(" • ") || "View property";
 
-    // image field: depends on rowsToProperties output structure
-    // common output: p.images = [{ imageUrl: "..." }]
     const firstImage =
       p?.images?.[0]?.imageUrl ||
       p?.images?.[0]?.ImageUrl ||
@@ -121,52 +118,70 @@ export async function ShareProperty(req, res) {
       p?.imageUrl ||
       "";
 
-
     const ogImage =
       toAbsoluteImageUrl(firstImage) ||
       "https://www.realo-realestate.com/og.png";
 
     const redirectUrl = buildSpaUrlFromProperty(p, id);
-
-    // NOTE: share URL should be the URL you're sharing. If you're hosting this on api.realo-realestate.com,
-    // use that domain. If you reverse-proxy it under www.realo-realestate.com, use that.
     const shareUrl = `https://www.realo-realestate.com/share/${id}`;
 
     const title = escapeHtml(titleRaw);
     const description = escapeHtml(descriptionRaw);
+    const ogImageSafe = escapeHtml(ogImage);
 
+    // ✅ BOT DETECTION (stronger + simpler)
+    const ua = (req.headers["user-agent"] || "").toLowerCase();
+    const isBot = [
+      "facebookexternalhit",
+      "facebot",
+      "twitterbot",
+      "slackbot",
+      "whatsapp",
+      "telegrambot",
+      "discordbot",
+      "linkedinbot",
+      "linkedin",
+    ].some((s) => ua.includes(s));
+
+    // ✅ Humans: redirect (ONLY server redirect)
+    if (!isBot) {
+      return res.redirect(302, redirectUrl);
+    }
+
+    // ✅ Bots: OG tags ONLY (NO refresh, NO JS redirect)
+    res.status(200);
     res.set("Content-Type", "text/html; charset=utf-8");
-    // During rollout/testing, disable caching so you see changes fast
-    res.set("Cache-Control", "no-store");
+    res.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate",
+    );
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
 
-    res.send(`<!doctype html>
+    return res.send(`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>${title}</title>
 
   <meta property="og:type" content="website" />
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
   <meta property="og:url" content="${shareUrl}" />
-  <meta property="og:image" content="${escapeHtml(ogImage)}" />
+  <meta property="og:image" content="${ogImageSafe}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${title}" />
   <meta name="twitter:description" content="${description}" />
-  <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
-
-  <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
-  <title>${title}</title>
+  <meta name="twitter:image" content="${ogImageSafe}" />
 </head>
-<body>
-  <script>window.location.replace(${JSON.stringify(redirectUrl)})</script>
-</body>
+<body></body>
 </html>`);
   } catch (err) {
     console.error("ShareProperty error:", err);
-    res.status(500).send("Server error");
+    return res.status(500).send("Server error");
   }
 }
 
