@@ -1,7 +1,37 @@
 import { getPool, sql } from "../db/mssql.js";
 import { rowsToProperties } from "../utils/shape.js";
 
-// GET: /api/Property/GetProperties
+/* ------------------------ helpers ------------------------ */
+function isValidId(n) {
+  return Number.isInteger(n) && n > 0;
+}
+
+function escapeHtml(str = "") {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function toAbsoluteImageUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+
+  // If DB stores relative paths like "/uploads/..."
+  return `https://www.realo-realestate.com${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+function buildSpaUrlFromProperty(p, id) {
+  // Your frontend structure seems like:
+  // /properties/<encoded title>/<id>
+  const title = p?.title || "Property";
+  const slug = encodeURIComponent(title);
+  return `https://www.realo-realestate.com/properties/${slug}/${id}`;
+}
+
+/* ------------------------ GET: /api/Property/GetProperties ------------------------ */
 export async function GetProperties(req, res) {
   try {
     const pool = await getPool();
@@ -20,23 +50,24 @@ export async function GetProperties(req, res) {
   }
 }
 
-// GET: /api/Property/GetProperty/{id}
+/* ------------------------ GET: /api/Property/GetProperty/{id} ------------------------ */
 export async function GetProperty(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: "Invalid id" });
+  if (!isValidId(id)) return res.status(400).json({ error: "Invalid id" });
 
   try {
     const pool = await getPool();
     const result = await pool.request().input("id", sql.Int, id).query(`
-        SELECT p.*, i.ImageId, i.ImageUrl
-        FROM Properties p
-        LEFT JOIN PropertiesImage i ON i.PropertyId = p.PropertyId
-        WHERE p.PropertyId = @id
-        ORDER BY i.ImageId ASC
-      `);
+      SELECT p.*, i.ImageId, i.ImageUrl
+      FROM Properties p
+      LEFT JOIN PropertiesImage i ON i.PropertyId = p.PropertyId
+      WHERE p.PropertyId = @id
+      ORDER BY i.ImageId ASC
+    `);
 
     const items = rowsToProperties(result.recordset || []);
     if (items.length === 0) return res.status(404).json({ error: "Not found" });
+
     res.json(items[0]);
   } catch (err) {
     console.error("GetProperty error:", err);
@@ -44,10 +75,105 @@ export async function GetProperty(req, res) {
   }
 }
 
-// POST: /api/Property/PostProperty
-// Body: PropertyDto (like your .NET DTO)
+/* ------------------------ NEW: GET HTML share page (OG tags) ------------------------ */
+/**
+ * GET: /api/Property/ShareProperty/{id}
+ *
+ * This returns HTML with OG meta tags so link previews show the property image.
+ * Humans get redirected to the SPA property page.
+ */
+export async function ShareProperty(req, res) {
+  const id = Number(req.params.id);
+  if (!isValidId(id)) return res.status(400).send("Invalid id");
+
+  try {
+    const pool = await getPool();
+    const result = await pool.request().input("id", sql.Int, id).query(`
+      SELECT p.*, i.ImageId, i.ImageUrl
+      FROM Properties p
+      LEFT JOIN PropertiesImage i ON i.PropertyId = p.PropertyId
+      WHERE p.PropertyId = @id
+      ORDER BY i.ImageId ASC
+    `);
+
+    const items = rowsToProperties(result.recordset || []);
+    if (items.length === 0) return res.status(404).send("Not found");
+
+    const p = items[0];
+
+    // these keys depend on rowsToProperties output
+    const titleRaw = p.title || "Property";
+    const city = p.city || "";
+    const price = p.price ? String(p.price).trim() : "";
+    const descriptionRaw =
+      [city, price ? `€${price.replace(/^€\s*/, "")}` : ""]
+        .filter(Boolean)
+        .join(" • ") || "View property";
+
+    // image field: depends on rowsToProperties output structure
+    // common output: p.images = [{ imageUrl: "..." }]
+    const firstImage =
+      p?.images?.[0]?.imageUrl ||
+      p?.images?.[0]?.ImageUrl ||
+      p?.Images?.[0]?.ImageUrl ||
+      p?.images?.[0]?.url ||
+      p?.mainImageUrl ||
+      p?.imageUrl ||
+      "";
+
+
+    const ogImage =
+      toAbsoluteImageUrl(firstImage) ||
+      "https://www.realo-realestate.com/og.png";
+
+    const redirectUrl = buildSpaUrlFromProperty(p, id);
+
+    // NOTE: share URL should be the URL you're sharing. If you're hosting this on api.realo-realestate.com,
+    // use that domain. If you reverse-proxy it under www.realo-realestate.com, use that.
+    const shareUrl = `https://www.realo-realestate.com/share/${id}`;
+
+    const title = escapeHtml(titleRaw);
+    const description = escapeHtml(descriptionRaw);
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    // During rollout/testing, disable caching so you see changes fast
+    res.set("Cache-Control", "no-store");
+
+    res.send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:url" content="${shareUrl}" />
+  <meta property="og:image" content="${escapeHtml(ogImage)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
+
+  <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
+  <title>${title}</title>
+</head>
+<body>
+  <script>window.location.replace(${JSON.stringify(redirectUrl)})</script>
+</body>
+</html>`);
+  } catch (err) {
+    console.error("ShareProperty error:", err);
+    res.status(500).send("Server error");
+  }
+}
+
+/* ------------------------ POST: /api/Property/PostProperty ------------------------ */
 export async function PostProperty(req, res) {
   const p = req.body;
+
   try {
     const pool = await getPool();
     const tx = new sql.Transaction(pool);
@@ -85,8 +211,6 @@ export async function PostProperty(req, res) {
 
       const newId = insert.recordset[0].PropertyId;
 
-      // (optional) insert images here if you send them in the request…
-
       await tx.commit();
       res.status(200).json({ message: "OK", propertyId: newId });
     } catch (err) {
@@ -99,12 +223,13 @@ export async function PostProperty(req, res) {
   }
 }
 
-// PUT: /api/Property/PutProperty/{id}
+/* ------------------------ PUT: /api/Property/PutProperty/{id} ------------------------ */
 export async function PutProperty(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: "Invalid id" });
+  if (!isValidId(id)) return res.status(400).json({ error: "Invalid id" });
 
   const p = req.body;
+
   try {
     const pool = await getPool();
     await pool
@@ -151,10 +276,10 @@ export async function PutProperty(req, res) {
   }
 }
 
-// DELETE: /api/Property/DeleteProperty/{id}
+/* ------------------------ DELETE: /api/Property/DeleteProperty/{id} ------------------------ */
 export async function DeleteProperty(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: "Invalid id" });
+  if (!isValidId(id)) return res.status(400).json({ error: "Invalid id" });
 
   try {
     const pool = await getPool();
@@ -162,6 +287,7 @@ export async function DeleteProperty(req, res) {
       DELETE FROM PropertiesImage WHERE PropertyId=@id;
       DELETE FROM Properties WHERE PropertyId=@id;
     `);
+
     res.status(204).send();
   } catch (err) {
     console.error("DeleteProperty error:", err);
@@ -169,10 +295,11 @@ export async function DeleteProperty(req, res) {
   }
 }
 
-// GET: /api/Property/GetPropertyImages/{propertyId}
+/* ------------------------ GET: /api/Property/GetPropertyImages/{propertyId} ------------------------ */
 export async function GetPropertyImages(req, res) {
   const propertyId = Number(req.params.propertyId);
-  if (!propertyId) return res.status(400).json({ error: "Invalid propertyId" });
+  if (!isValidId(propertyId))
+    return res.status(400).json({ error: "Invalid propertyId" });
 
   try {
     const pool = await getPool();
@@ -180,7 +307,7 @@ export async function GetPropertyImages(req, res) {
       .request()
       .input("propertyId", sql.Int, propertyId)
       .query(
-        `SELECT * FROM PropertiesImage WHERE PropertyId=@propertyId ORDER BY ImageId ASC`
+        `SELECT * FROM PropertiesImage WHERE PropertyId=@propertyId ORDER BY ImageId ASC`,
       );
 
     if (result.recordset.length === 0) {
@@ -188,16 +315,19 @@ export async function GetPropertyImages(req, res) {
         .status(404)
         .json({ message: "No images found for this property" });
     }
+
     res.json(result.recordset);
   } catch (err) {
     console.error("GetPropertyImages error:", err);
     res.status(500).json({ error: "Server error" });
   }
 }
-// GET: /api/Property/GetPropertyMainImage/{propertyId}
+
+/* ------------------------ GET: /api/Property/GetPropertyMainImage/{propertyId} ------------------------ */
 export async function GetPropertyMainImage(req, res) {
   const propertyId = Number(req.params.propertyId);
-  if (!propertyId) return res.status(400).json({ error: "Invalid propertyId" });
+  if (!isValidId(propertyId))
+    return res.status(400).json({ error: "Invalid propertyId" });
 
   try {
     const pool = await getPool();
@@ -222,12 +352,12 @@ export async function GetPropertyMainImage(req, res) {
   }
 }
 
-// POST: /api/Property/AddPropertyImage/:propertyId
+/* ------------------------ POST: /api/Property/AddPropertyImage/:propertyId ------------------------ */
 export async function AddPropertyImage(req, res) {
   const propertyId = Number(req.params.propertyId);
   const imageUrl = req.body?.imageUrl || req.body; // supports raw string or {imageUrl}
 
-  if (!propertyId || !imageUrl) {
+  if (!isValidId(propertyId) || !imageUrl) {
     return res.status(400).json({ error: "Missing propertyId or imageUrl" });
   }
 
@@ -242,7 +372,6 @@ export async function AddPropertyImage(req, res) {
         VALUES (@imageUrl, @propertyId)
       `);
 
-    // return the newly inserted row
     res.json(result.recordset[0]);
   } catch (err) {
     console.error("AddPropertyImage error:", err);
@@ -250,12 +379,12 @@ export async function AddPropertyImage(req, res) {
   }
 }
 
-// PUT: /api/Property/UpdatePropertyImages/{propertyId}
-// Body: ["url1","url2",...]
+/* ------------------------ PUT: /api/Property/UpdatePropertyImages/{propertyId} ------------------------ */
 export async function UpdatePropertyImages(req, res) {
   const propertyId = Number(req.params.propertyId);
   const urls = Array.isArray(req.body) ? req.body : [];
-  if (!propertyId) return res.status(400).json({ error: "Invalid propertyId" });
+  if (!isValidId(propertyId))
+    return res.status(400).json({ error: "Invalid propertyId" });
 
   try {
     const pool = await getPool();
@@ -263,19 +392,17 @@ export async function UpdatePropertyImages(req, res) {
     await tx.begin();
 
     try {
-      // delete ALL existing images (that’s intended for bulk update)
       await new sql.Request(tx)
         .input("propertyId", sql.Int, propertyId)
         .query(`DELETE FROM PropertiesImage WHERE PropertyId=@propertyId`);
 
-      // re-insert the new list
       if (urls.length) {
         for (const u of urls) {
           await new sql.Request(tx)
             .input("propertyId", sql.Int, propertyId)
             .input("imageUrl", sql.NVarChar(1000), String(u))
             .query(
-              `INSERT INTO PropertiesImage (ImageUrl, PropertyId) VALUES (@imageUrl, @propertyId)`
+              `INSERT INTO PropertiesImage (ImageUrl, PropertyId) VALUES (@imageUrl, @propertyId)`,
             );
         }
       }
@@ -292,13 +419,12 @@ export async function UpdatePropertyImages(req, res) {
   }
 }
 
-// DELETE: /api/Property/DeletePropertyImage/{propertyId}/{imageId}
-// DELETE: /api/Property/DeletePropertyImage/{propertyId}/{imageId}
+/* ------------------------ DELETE: /api/Property/DeletePropertyImage/{propertyId}/{imageId} ------------------------ */
 export async function DeletePropertyImage(req, res) {
   const propertyId = Number(req.params.propertyId);
   const imageId = Number(req.params.imageId);
 
-  if (!propertyId || !imageId)
+  if (!isValidId(propertyId) || !isValidId(imageId))
     return res.status(400).json({ error: "Invalid params" });
 
   try {
@@ -308,7 +434,7 @@ export async function DeletePropertyImage(req, res) {
       .input("propertyId", sql.Int, propertyId)
       .input("imageId", sql.Int, imageId)
       .query(
-        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId AND ImageId=@imageId`
+        `DELETE FROM PropertiesImage WHERE PropertyId=@propertyId AND ImageId=@imageId`,
       );
 
     if ((result.rowsAffected?.[0] ?? 0) === 0) {
