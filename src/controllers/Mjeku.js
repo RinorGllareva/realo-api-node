@@ -1,13 +1,13 @@
 import { getPool, sql } from "../db/mssql.js";
-import { rowsToProperties } from "../utils/shape.js";
+import { rowsToProperties } from "../utils/shapeuser.js";
 
 export async function GetMjeket(req, res) {
   try {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT p.*
-      FROM Users p
-      ORDER BY p.id DESC
+      SELECT u.*
+      FROM Users u
+      ORDER BY u.id DESC
     `);
 
     const items = rowsToProperties(result.recordset || []);
@@ -25,9 +25,9 @@ export async function GetMjeku(req, res) {
   try {
     const pool = await getPool();
     const result = await pool.request().input("id", sql.Int, id).query(`
-      SELECT p.*
-      FROM Users p
-      WHERE p.id = @id
+      SELECT u.*
+      FROM Users u
+      WHERE u.id = @id
     `);
 
     const items = rowsToProperties(result.recordset || []);
