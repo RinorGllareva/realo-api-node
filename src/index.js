@@ -4,6 +4,7 @@ import cors from "cors";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import propertyRoutes from "./routes/property.routes.js";
+import MjekuRoutes from "./routes/mjeku.routes.js";
 
 dotenv.config();
 
@@ -55,6 +56,7 @@ app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 /* --------------------------- routes --------------------------- */
 // Match your .NET-style path: /api/Property/...
 app.use("/api/Property", propertyRoutes);
+app.use("/api/Mjeku", MjekuRoutes);
 
 /* --------------------------- 404 ------------------------------ */
 app.use((req, res) => {
