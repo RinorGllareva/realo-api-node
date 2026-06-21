@@ -4,6 +4,7 @@ import {
   GetProperty,
   PostProperty,
   PutProperty,
+  UpdatePropertyMedia,
   DeleteProperty,
   GetPropertyImages,
   AddPropertyImage,
@@ -22,6 +23,7 @@ router.get("/GetProperties", GetProperties);
 router.get("/GetProperty/:id", GetProperty);
 router.post("/PostProperty", PostProperty);
 router.put("/PutProperty/:id", PutProperty);
+router.patch("/UpdatePropertyMedia/:id", UpdatePropertyMedia);
 router.delete("/DeleteProperty/:id", DeleteProperty);
 router.get("/GetPropertyImages/:propertyId", GetPropertyImages);
 router.get("/GetPropertyMainImage/:propertyId", GetPropertyMainImage);
@@ -29,10 +31,9 @@ router.post("/AddPropertyImage/:propertyId", AddPropertyImage);
 router.put("/UpdatePropertyImages/:propertyId", UpdatePropertyImages);
 router.delete("/DeletePropertyImage/:propertyId/:imageId", DeletePropertyImage);
 
-/* ✅ OG Share endpoint (this one is enough) */
+/* OG Share endpoint */
 router.get("/ShareProperty/:id", ShareProperty);
 
-/* ❌ Optional (I recommend deleting this entire route) */
 router.get("/og/property/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).send("Invalid property id");
