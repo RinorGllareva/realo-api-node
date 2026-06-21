@@ -22,6 +22,8 @@ export function rowsToProperties(rows) {
         hasOwnershipDocument: !!r.HasOwnershipDocument,
         latitude: r.Latitude,
         longitude: r.Longitude,
+        floorPlanUrl: r.FloorPlanUrl ?? "",
+        virtualTourUrl: r.VirtualTourUrl ?? "",
         images: [],
       });
     }
