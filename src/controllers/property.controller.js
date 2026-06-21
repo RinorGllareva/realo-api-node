@@ -31,6 +31,16 @@ function buildSpaUrlFromProperty(p, id) {
   return `https://www.realo-realestate.com/properties/${slug}/${id}`;
 }
 
+async function ensurePropertyMediaColumns(pool) {
+  await pool.request().query(`
+    IF COL_LENGTH('Properties', 'FloorPlanUrl') IS NULL
+      ALTER TABLE Properties ADD FloorPlanUrl NVARCHAR(1000) NULL;
+
+    IF COL_LENGTH('Properties', 'VirtualTourUrl') IS NULL
+      ALTER TABLE Properties ADD VirtualTourUrl NVARCHAR(1000) NULL;
+  `);
+}
+
 /* ------------------------ GET: /api/Property/GetProperties ------------------------ */
 export async function GetProperties(req, res) {
   try {
@@ -129,7 +139,7 @@ export async function ShareProperty(req, res) {
     const description = escapeHtml(descriptionRaw);
     const ogImageSafe = escapeHtml(ogImage);
 
-    // ✅ BOT DETECTION (stronger + simpler)
+    // Bot detection for social preview crawlers.
     const ua = (req.headers["user-agent"] || "").toLowerCase();
     const isBot = [
       "facebookexternalhit",
@@ -143,12 +153,10 @@ export async function ShareProperty(req, res) {
       "linkedin",
     ].some((s) => ua.includes(s));
 
-    // ✅ Humans: redirect (ONLY server redirect)
     if (!isBot) {
       return res.redirect(302, redirectUrl);
     }
 
-    // ✅ Bots: OG tags ONLY (NO refresh, NO JS redirect)
     res.status(200);
     res.set("Content-Type", "text/html; charset=utf-8");
     res.set(
@@ -191,6 +199,7 @@ export async function PostProperty(req, res) {
 
   try {
     const pool = await getPool();
+    await ensurePropertyMediaColumns(pool);
     const tx = new sql.Transaction(pool);
     await tx.begin();
 
@@ -205,23 +214,25 @@ export async function PostProperty(req, res) {
         .input("PropertyType", sql.NVarChar(50), p.propertyType ?? "")
         .input("IsForSale", sql.Bit, !!p.isForSale)
         .input("IsForRent", sql.Bit, !!p.isForRent)
-        .input("Price", sql.NVarChar(100), String(p.price ?? "")) // Price is NVARCHAR
+        .input("Price", sql.NVarChar(100), String(p.price ?? ""))
         .input("Bedrooms", sql.Int, Number(p.bedrooms) || 0)
         .input("Bathrooms", sql.Int, Number(p.bathrooms) || 0)
         .input("SquareFeet", sql.Int, Number(p.squareFeet) || 0)
         .input("HasOwnershipDocument", sql.Bit, !!p.hasOwnershipDocument)
         .input("Furniture", sql.NVarChar(100), p.furniture ?? "")
+        .input("FloorPlanUrl", sql.NVarChar(1000), p.floorPlanUrl ?? "")
+        .input("VirtualTourUrl", sql.NVarChar(1000), p.virtualTourUrl ?? "")
         .input("Latitude", sql.Float, Number(p.latitude) || 0)
         .input("Longitude", sql.Float, Number(p.longitude) || 0).query(`
           INSERT INTO Properties
             (Title, Description, Address, City, PropertyType, IsForSale, IsForRent,
              Price, Bedrooms, Bathrooms, SquareFeet, HasOwnershipDocument, Furniture,
-             Latitude, Longitude)
+             FloorPlanUrl, VirtualTourUrl, Latitude, Longitude)
           OUTPUT INSERTED.PropertyId
           VALUES
             (@Title, @Description, @Address, @City, @PropertyType, @IsForSale, @IsForRent,
              @Price, @Bedrooms, @Bathrooms, @SquareFeet, @HasOwnershipDocument, @Furniture,
-             @Latitude, @Longitude)
+             @FloorPlanUrl, @VirtualTourUrl, @Latitude, @Longitude)
         `);
 
       const newId = insert.recordset[0].PropertyId;
@@ -247,6 +258,7 @@ export async function PutProperty(req, res) {
 
   try {
     const pool = await getPool();
+    await ensurePropertyMediaColumns(pool);
     await pool
       .request()
       .input("PropertyId", sql.Int, id)
@@ -263,6 +275,8 @@ export async function PutProperty(req, res) {
       .input("SquareFeet", sql.Int, Number(p.squareFeet) || 0)
       .input("HasOwnershipDocument", sql.Bit, !!p.hasOwnershipDocument)
       .input("Furniture", sql.NVarChar(100), p.furniture ?? "")
+      .input("FloorPlanUrl", sql.NVarChar(1000), p.floorPlanUrl ?? "")
+      .input("VirtualTourUrl", sql.NVarChar(1000), p.virtualTourUrl ?? "")
       .input("Latitude", sql.Float, Number(p.latitude) || 0)
       .input("Longitude", sql.Float, Number(p.longitude) || 0).query(`
         UPDATE Properties SET
@@ -279,6 +293,8 @@ export async function PutProperty(req, res) {
           SquareFeet=@SquareFeet,
           HasOwnershipDocument=@HasOwnershipDocument,
           Furniture=@Furniture,
+          FloorPlanUrl=@FloorPlanUrl,
+          VirtualTourUrl=@VirtualTourUrl,
           Latitude=@Latitude,
           Longitude=@Longitude
         WHERE PropertyId=@PropertyId
@@ -370,7 +386,7 @@ export async function GetPropertyMainImage(req, res) {
 /* ------------------------ POST: /api/Property/AddPropertyImage/:propertyId ------------------------ */
 export async function AddPropertyImage(req, res) {
   const propertyId = Number(req.params.propertyId);
-  const imageUrl = req.body?.imageUrl || req.body; // supports raw string or {imageUrl}
+  const imageUrl = req.body?.imageUrl || req.body;
 
   if (!isValidId(propertyId) || !imageUrl) {
     return res.status(400).json({ error: "Missing propertyId or imageUrl" });
