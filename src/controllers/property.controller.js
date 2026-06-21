@@ -307,6 +307,47 @@ export async function PutProperty(req, res) {
   }
 }
 
+/* ------------------------ PATCH: /api/Property/UpdatePropertyMedia/{id} ------------------------ */
+export async function UpdatePropertyMedia(req, res) {
+  const id = Number(req.params.id);
+  if (!isValidId(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const p = req.body ?? {};
+
+  try {
+    const pool = await getPool();
+    await ensurePropertyMediaColumns(pool);
+
+    const result = await pool
+      .request()
+      .input("PropertyId", sql.Int, id)
+      .input("FloorPlanUrl", sql.NVarChar(1000), p.floorPlanUrl ?? "")
+      .input("VirtualTourUrl", sql.NVarChar(1000), p.virtualTourUrl ?? "")
+      .query(`
+        UPDATE Properties SET
+          FloorPlanUrl = @FloorPlanUrl,
+          VirtualTourUrl = @VirtualTourUrl
+        WHERE PropertyId = @PropertyId;
+
+        SELECT PropertyId, FloorPlanUrl, VirtualTourUrl
+        FROM Properties
+        WHERE PropertyId = @PropertyId;
+      `);
+
+    const updated = result.recordset?.[0];
+    if (!updated) return res.status(404).json({ error: "Not found" });
+
+    res.json({
+      propertyId: updated.PropertyId,
+      floorPlanUrl: updated.FloorPlanUrl ?? "",
+      virtualTourUrl: updated.VirtualTourUrl ?? "",
+    });
+  } catch (err) {
+    console.error("UpdatePropertyMedia error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+}
+
 /* ------------------------ DELETE: /api/Property/DeleteProperty/{id} ------------------------ */
 export async function DeleteProperty(req, res) {
   const id = Number(req.params.id);
