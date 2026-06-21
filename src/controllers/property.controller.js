@@ -31,6 +31,16 @@ function buildSpaUrlFromProperty(p, id) {
   return `https://www.realo-realestate.com/properties/${slug}/${id}`;
 }
 
+async function ensurePropertyMediaColumns(pool) {
+  await pool.request().query(`
+    IF COL_LENGTH('Properties', 'FloorPlanUrl') IS NULL
+      ALTER TABLE Properties ADD FloorPlanUrl NVARCHAR(1000) NULL;
+
+    IF COL_LENGTH('Properties', 'VirtualTourUrl') IS NULL
+      ALTER TABLE Properties ADD VirtualTourUrl NVARCHAR(1000) NULL;
+  `);
+}
+
 /* ------------------------ GET: /api/Property/GetProperties ------------------------ */
 export async function GetProperties(req, res) {
   try {
@@ -191,6 +201,7 @@ export async function PostProperty(req, res) {
 
   try {
     const pool = await getPool();
+    await ensurePropertyMediaColumns(pool);
     const tx = new sql.Transaction(pool);
     await tx.begin();
 
@@ -211,17 +222,19 @@ export async function PostProperty(req, res) {
         .input("SquareFeet", sql.Int, Number(p.squareFeet) || 0)
         .input("HasOwnershipDocument", sql.Bit, !!p.hasOwnershipDocument)
         .input("Furniture", sql.NVarChar(100), p.furniture ?? "")
+        .input("FloorPlanUrl", sql.NVarChar(1000), p.floorPlanUrl ?? "")
+        .input("VirtualTourUrl", sql.NVarChar(1000), p.virtualTourUrl ?? "")
         .input("Latitude", sql.Float, Number(p.latitude) || 0)
         .input("Longitude", sql.Float, Number(p.longitude) || 0).query(`
           INSERT INTO Properties
             (Title, Description, Address, City, PropertyType, IsForSale, IsForRent,
              Price, Bedrooms, Bathrooms, SquareFeet, HasOwnershipDocument, Furniture,
-             Latitude, Longitude)
+             FloorPlanUrl, VirtualTourUrl, Latitude, Longitude)
           OUTPUT INSERTED.PropertyId
           VALUES
             (@Title, @Description, @Address, @City, @PropertyType, @IsForSale, @IsForRent,
              @Price, @Bedrooms, @Bathrooms, @SquareFeet, @HasOwnershipDocument, @Furniture,
-             @Latitude, @Longitude)
+             @FloorPlanUrl, @VirtualTourUrl, @Latitude, @Longitude)
         `);
 
       const newId = insert.recordset[0].PropertyId;
@@ -247,6 +260,7 @@ export async function PutProperty(req, res) {
 
   try {
     const pool = await getPool();
+    await ensurePropertyMediaColumns(pool);
     await pool
       .request()
       .input("PropertyId", sql.Int, id)
@@ -263,6 +277,8 @@ export async function PutProperty(req, res) {
       .input("SquareFeet", sql.Int, Number(p.squareFeet) || 0)
       .input("HasOwnershipDocument", sql.Bit, !!p.hasOwnershipDocument)
       .input("Furniture", sql.NVarChar(100), p.furniture ?? "")
+      .input("FloorPlanUrl", sql.NVarChar(1000), p.floorPlanUrl ?? "")
+      .input("VirtualTourUrl", sql.NVarChar(1000), p.virtualTourUrl ?? "")
       .input("Latitude", sql.Float, Number(p.latitude) || 0)
       .input("Longitude", sql.Float, Number(p.longitude) || 0).query(`
         UPDATE Properties SET
@@ -279,6 +295,8 @@ export async function PutProperty(req, res) {
           SquareFeet=@SquareFeet,
           HasOwnershipDocument=@HasOwnershipDocument,
           Furniture=@Furniture,
+          FloorPlanUrl=@FloorPlanUrl,
+          VirtualTourUrl=@VirtualTourUrl,
           Latitude=@Latitude,
           Longitude=@Longitude
         WHERE PropertyId=@PropertyId
@@ -287,6 +305,47 @@ export async function PutProperty(req, res) {
     res.json({ message: "Property updated successfully!" });
   } catch (err) {
     console.error("PutProperty error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+}
+
+/* ------------------------ PATCH: /api/Property/UpdatePropertyMedia/{id} ------------------------ */
+export async function UpdatePropertyMedia(req, res) {
+  const id = Number(req.params.id);
+  if (!isValidId(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const p = req.body ?? {};
+
+  try {
+    const pool = await getPool();
+    await ensurePropertyMediaColumns(pool);
+
+    const result = await pool
+      .request()
+      .input("PropertyId", sql.Int, id)
+      .input("FloorPlanUrl", sql.NVarChar(1000), p.floorPlanUrl ?? "")
+      .input("VirtualTourUrl", sql.NVarChar(1000), p.virtualTourUrl ?? "")
+      .query(`
+        UPDATE Properties SET
+          FloorPlanUrl = @FloorPlanUrl,
+          VirtualTourUrl = @VirtualTourUrl
+        WHERE PropertyId = @PropertyId;
+
+        SELECT PropertyId, FloorPlanUrl, VirtualTourUrl
+        FROM Properties
+        WHERE PropertyId = @PropertyId;
+      `);
+
+    const updated = result.recordset?.[0];
+    if (!updated) return res.status(404).json({ error: "Not found" });
+
+    res.json({
+      propertyId: updated.PropertyId,
+      floorPlanUrl: updated.FloorPlanUrl ?? "",
+      virtualTourUrl: updated.VirtualTourUrl ?? "",
+    });
+  } catch (err) {
+    console.error("UpdatePropertyMedia error:", err);
     res.status(500).json({ error: "Server error" });
   }
 }

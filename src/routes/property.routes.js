@@ -4,6 +4,7 @@ import {
   GetProperty,
   PostProperty,
   PutProperty,
+  UpdatePropertyMedia,
   DeleteProperty,
   GetPropertyImages,
   AddPropertyImage,
@@ -22,6 +23,7 @@ router.get("/GetProperties", GetProperties);
 router.get("/GetProperty/:id", GetProperty);
 router.post("/PostProperty", PostProperty);
 router.put("/PutProperty/:id", PutProperty);
+router.patch("/UpdatePropertyMedia/:id", UpdatePropertyMedia);
 router.delete("/DeleteProperty/:id", DeleteProperty);
 router.get("/GetPropertyImages/:propertyId", GetPropertyImages);
 router.get("/GetPropertyMainImage/:propertyId", GetPropertyMainImage);
