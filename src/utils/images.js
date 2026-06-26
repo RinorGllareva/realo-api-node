@@ -8,10 +8,15 @@ function normalizeOrigin(origin) {
 }
 
 export function apiOrigin() {
+  const configuredOrigin = process.env.PUBLIC_API_ORIGIN || process.env.VITE_API_URL;
+  if (configuredOrigin) return normalizeOrigin(configuredOrigin);
+
+  if (process.env.NODE_ENV === "production") {
+    return "https://api.realo-realestate.com";
+  }
+
   return normalizeOrigin(
-    process.env.PUBLIC_API_ORIGIN ||
-      process.env.VITE_API_URL ||
-      `http://localhost:${process.env.PORT || 3000}`,
+    `http://localhost:${process.env.PORT || 3000}`,
   );
 }
 
