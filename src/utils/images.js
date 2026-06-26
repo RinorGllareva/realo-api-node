@@ -8,16 +8,13 @@ function normalizeOrigin(origin) {
 }
 
 export function apiOrigin() {
-  const configuredOrigin = process.env.PUBLIC_API_ORIGIN || process.env.VITE_API_URL;
+  const configuredOrigin =
+    process.env.PUBLIC_API_ORIGIN ||
+    process.env.VITE_API_URL ||
+    process.env.LOCAL_API_ORIGIN;
   if (configuredOrigin) return normalizeOrigin(configuredOrigin);
 
-  if (process.env.NODE_ENV === "production") {
-    return "https://api.realo-realestate.com";
-  }
-
-  return normalizeOrigin(
-    `http://localhost:${process.env.PORT || 3000}`,
-  );
+  return "https://api.realo-realestate.com";
 }
 
 export function imageApiUrl(imageId) {
