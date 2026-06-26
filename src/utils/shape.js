@@ -1,82 +1,74 @@
-<<<<<<< HEAD
-// Group denormalized join rows into Property objects with Images[]
+import { preferredImageUrl, hasDatabaseImage } from "./images.js";
+
 export function rowsToProperties(rows) {
   const map = new Map();
 
-  for (const r of rows) {
-    const id = r.PropertyId;
-    if (!map.has(id)) {
-      map.set(id, {
-        propertyId: r.PropertyId,
-        title: r.Title,
-        description: r.Description,
-        address: r.Address,
-        city: r.City,
-        propertyType: r.PropertyType,
-        isForSale: !!r.IsForSale,
-        isForRent: !!r.IsForRent,
-        price: r.Price,
-        bedrooms: r.Bedrooms,
-        bathrooms: r.Bathrooms,
-        squareFeet: r.SquareFeet,
-        furniture: r.Furniture,
-        hasOwnershipDocument: !!r.HasOwnershipDocument,
-=======
-// Group denormalized join rows into Property objects with Images[]
-export function rowsToProperties(rows) {
-  const map = new Map();
+  for (const row of rows) {
+    const id = row.PropertyId;
+    if (!id) continue;
 
-  for (const r of rows) {
-    const id = r.PropertyId;
     if (!map.has(id)) {
       map.set(id, {
-        propertyId: r.PropertyId,
-        title: r.Title,
-        description: r.Description,
-        address: r.Address,
-        city: r.City,
-        propertyType: r.PropertyType,
-        isForSale: !!r.IsForSale,
-        isForRent: !!r.IsForRent,
-        price: r.Price,
-        bedrooms: r.Bedrooms,
-        bathrooms: r.Bathrooms,
-        squareFeet: r.SquareFeet,
-        furniture: r.Furniture,
-        hasOwnershipDocument: !!r.HasOwnershipDocument,
->>>>>>> 6503b2033be2aa4cc2a26c7ffb34e013902ebeeb
-        latitude: r.Latitude,
-        longitude: r.Longitude,
-        floorPlanUrl: r.FloorPlanUrl ?? "",
-        virtualTourUrl: r.VirtualTourUrl ?? "",
+        propertyId: row.PropertyId,
+        title: row.Title,
+        description: row.Description,
+        address: row.Address,
+        city: row.City,
+        state: row.State,
+        zipCode: row.ZipCode,
+        propertyType: row.PropertyType,
+        isForSale: !!row.IsForSale,
+        isForRent: !!row.IsForRent,
+        price: row.Price,
+        bedrooms: row.Bedrooms,
+        bathrooms: row.Bathrooms,
+        squareFeet: row.SquareFeet,
+        isAvailable: row.IsAvailable,
+        listingStatus: row.ListingStatus,
+        listedDate: row.ListedDate,
+        soldOrRentedDate: row.SoldOrRentedDate,
+        orientation: row.Orientation,
+        furniture: row.Furniture,
+        heatingSystem: row.HeatingSystem,
+        additionalFeatures: row.AdditionalFeatures,
+        hasOwnershipDocument: !!row.HasOwnershipDocument,
+        spaces: row.Spaces,
+        floorLevel: row.FloorLevel,
+        country: row.Country,
+        neighborhood: row.Neighborhood,
+        builder: row.Builder,
+        complex: row.Complex,
+        exteriorVideo: row.ExteriorVideo,
+        interiorVideo: row.InteriorVideo,
+        latitude: row.Latitude,
+        longitude: row.Longitude,
+        floorPlanUrl: row.FloorPlanUrl ?? "",
+        virtualTourUrl: row.VirtualTourUrl ?? "",
+        virtualTourId: row.VirtualTourId ?? null,
+        virtualTourRoomCount: Number(row.VirtualTourRoomCount ?? 0),
+        hasInternalVirtualTour: !!row.HasInternalVirtualTour,
+        hasPublishedVirtualTour: !!row.HasPublishedVirtualTour,
         images: [],
       });
-<<<<<<< HEAD
     }
 
-    if (r.ImageId) {
+    if (row.ImageId) {
       map.get(id).images.push({
-        imageId: r.ImageId,
-        imageUrl: r.ImageUrl,
-        propertyId: r.PropertyId,
+        imageId: row.ImageId,
+        imageUrl: preferredImageUrl(row),
+        originalUrl: row.OriginalUrl,
+        hasImageData: hasDatabaseImage(row),
+        mimeType: row.MimeType,
+        width: row.Width,
+        height: row.Height,
+        sortOrder: row.SortOrder ?? 0,
+        propertyId: row.PropertyId,
       });
     }
   }
 
-  return Array.from(map.values());
+  return Array.from(map.values()).map((property) => ({
+    ...property,
+    images: property.images.sort((a, b) => a.sortOrder - b.sortOrder),
+  }));
 }
-=======
-    }
-
-    if (r.ImageId) {
-      map.get(id).images.push({
-        imageId: r.ImageId,
-        imageUrl: r.ImageUrl,
-        propertyId: r.PropertyId,
-      });
-    }
-  }
-
-  return Array.from(map.values());
-}
->>>>>>> 6503b2033be2aa4cc2a26c7ffb34e013902ebeeb
