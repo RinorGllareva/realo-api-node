@@ -164,7 +164,7 @@ async function insertPropertyImages(tx, propertyId, images) {
     const request = new sql.Request(tx);
     request
       .input("PropertyId", sql.Int, propertyId)
-      .input("ImageUrl", sql.NVarChar(1000), null)
+      .input("ImageUrl", sql.NVarChar(1000), processed?.originalUrl || sourceUrl || "pending")
       .input("OriginalUrl", sql.NVarChar(1000), processed?.originalUrl || sourceUrl || null)
       .input("ImageData", sql.VarBinary(sql.MAX), processed?.buffer || image.ImageData || null)
       .input("MimeType", sql.NVarChar(100), processed?.mimeType || image.MimeType || null)
@@ -762,7 +762,7 @@ export async function AddPropertyImage(req, res) {
 
       const result = await new sql.Request(tx)
         .input("PropertyId", sql.Int, propertyId)
-        .input("ImageUrl", sql.NVarChar(1000), null)
+        .input("ImageUrl", sql.NVarChar(1000), originalUrl || "pending")
         .input("OriginalUrl", sql.NVarChar(1000), originalUrl)
         .input("ImageData", sql.VarBinary(sql.MAX), imageData)
         .input("MimeType", sql.NVarChar(100), mimeType)
@@ -810,7 +810,7 @@ export async function ImportPropertyImages(req, res) {
         const remote = await remoteImageToRecord(String(urls[index]));
         const result = await new sql.Request(tx)
           .input("PropertyId", sql.Int, propertyId)
-          .input("ImageUrl", sql.NVarChar(1000), null)
+          .input("ImageUrl", sql.NVarChar(1000), remote.originalUrl)
           .input("OriginalUrl", sql.NVarChar(1000), remote.originalUrl)
           .input("ImageData", sql.VarBinary(sql.MAX), remote.buffer)
           .input("MimeType", sql.NVarChar(100), remote.mimeType)
@@ -898,7 +898,7 @@ export async function UpdatePropertyImages(req, res) {
         const remote = await remoteImageToRecord(String(sourceUrl));
         const insert = await new sql.Request(tx)
           .input("propertyId", sql.Int, propertyId)
-          .input("imageUrl", sql.NVarChar(1000), null)
+          .input("imageUrl", sql.NVarChar(1000), remote.originalUrl)
           .input("originalUrl", sql.NVarChar(1000), remote.originalUrl)
           .input("imageData", sql.VarBinary(sql.MAX), remote.buffer)
           .input("mimeType", sql.NVarChar(100), remote.mimeType)
