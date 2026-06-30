@@ -5,6 +5,11 @@ function isValidId(n) {
   return Number.isInteger(n) && n > 0;
 }
 
+function sendControllerError(res, err, fallback = "Server error") {
+  const status = Number(err?.statusCode) || 500;
+  res.status(status).json({ error: err?.publicMessage || (status < 500 ? err?.message : fallback) || fallback });
+}
+
 function num(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -234,7 +239,7 @@ export async function AddRoom(req, res) {
     res.json(updated);
   } catch (err) {
     console.error("AddRoom error:", err);
-    res.status(500).json({ error: "Server error" });
+    sendControllerError(res, err);
   }
 }
 

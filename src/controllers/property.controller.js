@@ -14,6 +14,11 @@ function isValidId(n) {
   return Number.isInteger(n) && n > 0;
 }
 
+function sendControllerError(res, err, fallback = "Server error") {
+  const status = Number(err?.statusCode) || 500;
+  res.status(status).json({ error: err?.publicMessage || (status < 500 ? err?.message : fallback) || fallback });
+}
+
 function escapeHtml(str = "") {
   return String(str)
     .replaceAll("&", "&amp;")
@@ -538,7 +543,7 @@ export async function UploadFloorPlanImage(req, res) {
     });
   } catch (err) {
     console.error("UploadFloorPlanImage error:", err);
-    res.status(500).json({ error: "Server error" });
+    sendControllerError(res, err);
   }
 }
 
@@ -695,7 +700,7 @@ export async function UpscalePropertyImage(req, res) {
     });
   } catch (err) {
     console.error("UpscalePropertyImage error:", err);
-    res.status(500).json({ error: "Server error" });
+    sendControllerError(res, err);
   }
 }
 
@@ -710,7 +715,17 @@ export async function AddPropertyImage(req, res) {
     await tx.begin();
 
     try {
-      const input = req.file?.buffer || req.body?.imageUrl || req.body?.file || req.body;
+      const property = await new sql.Request(tx)
+        .input("propertyId", sql.Int, propertyId)
+        .query(`SELECT TOP 1 PropertyId FROM Properties WHERE PropertyId=@propertyId`);
+      if (!property.recordset[0]) {
+        const err = new Error("Property not found.");
+        err.statusCode = 404;
+        err.publicMessage = "Property not found.";
+        throw err;
+      }
+
+      const input = req.file?.buffer || req.body?.imageUrl || req.body?.file || "";
       let originalUrl = req.body?.originalUrl || "";
       let imageData = null;
       let mimeType = "image/jpeg";
@@ -725,13 +740,25 @@ export async function AddPropertyImage(req, res) {
         height = processed.height;
         originalUrl = originalUrl || req.file?.originalname || "";
       } else if (typeof input === "string") {
-        const remote = await remoteImageToRecord(input);
+        const remote = await remoteImageToRecord(input.trim());
         imageData = remote.buffer;
         mimeType = remote.mimeType;
         width = remote.width;
         height = remote.height;
         originalUrl = remote.originalUrl;
       }
+
+      if (!imageData) {
+        const err = new Error("Choose an image file or enter a valid image URL.");
+        err.statusCode = 400;
+        err.publicMessage = "Choose an image file or enter a valid image URL.";
+        throw err;
+      }
+
+      const orderResult = await new sql.Request(tx)
+        .input("propertyId", sql.Int, propertyId)
+        .query(`SELECT COALESCE(MAX(SortOrder), -1) + 1 AS NextSortOrder FROM PropertiesImage WHERE PropertyId=@propertyId`);
+      const sortOrder = orderResult.recordset[0]?.NextSortOrder ?? 0;
 
       const result = await new sql.Request(tx)
         .input("PropertyId", sql.Int, propertyId)
@@ -741,7 +768,7 @@ export async function AddPropertyImage(req, res) {
         .input("MimeType", sql.NVarChar(100), mimeType)
         .input("Width", sql.Int, width)
         .input("Height", sql.Int, height)
-        .input("SortOrder", sql.Int, 0).query(`
+        .input("SortOrder", sql.Int, sortOrder).query(`
           INSERT INTO PropertiesImage
             (PropertyId, ImageUrl, OriginalUrl, ImageData, MimeType, Width, Height, SortOrder)
           OUTPUT INSERTED.ImageId, INSERTED.ImageUrl, INSERTED.OriginalUrl, INSERTED.MimeType, INSERTED.Width, INSERTED.Height, INSERTED.SortOrder
@@ -762,7 +789,7 @@ export async function AddPropertyImage(req, res) {
     }
   } catch (err) {
     console.error("AddPropertyImage error:", err);
-    res.status(500).json({ error: "Server error" });
+    sendControllerError(res, err);
   }
 }
 
@@ -812,7 +839,7 @@ export async function ImportPropertyImages(req, res) {
     }
   } catch (err) {
     console.error("ImportPropertyImages error:", err);
-    res.status(500).json({ error: "Server error" });
+    sendControllerError(res, err);
   }
 }
 
@@ -900,7 +927,7 @@ export async function UpdatePropertyImages(req, res) {
     }
   } catch (err) {
     console.error("UpdatePropertyImages error:", err);
-    res.status(500).json({ error: "Server error" });
+    sendControllerError(res, err);
   }
 }
 

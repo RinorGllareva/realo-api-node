@@ -68,8 +68,16 @@ app.use((req, res) => {
 /* ------------------------ error handler ----------------------- */
 app.use((err, _req, res, _next) => {
   // CORS or other errors fall through here
-  const status = err.message?.startsWith("Not allowed by CORS") ? 403 : 500;
-  res.status(status).json({ error: err.message || "Server error" });
+  const isMulterLimit = err.code === "LIMIT_FILE_SIZE";
+  const status = err.message?.startsWith("Not allowed by CORS")
+    ? 403
+    : isMulterLimit
+      ? 413
+      : err.statusCode || 500;
+  const message = isMulterLimit
+    ? "Uploaded image is too large."
+    : err.publicMessage || (status < 500 ? err.message : "Server error") || "Server error";
+  res.status(status).json({ error: message });
 });
 
 /* --------------------------- start ---------------------------- */

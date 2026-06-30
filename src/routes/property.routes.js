@@ -22,9 +22,16 @@ import {
 } from "../controllers/property.controller.js";
 
 const router = Router();
+const propertyMediaLimitMb = Number(process.env.PROPERTY_MEDIA_UPLOAD_LIMIT_MB || 75);
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: propertyMediaLimitMb * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype?.startsWith("image/")) {
+      return cb(new Error("Only image files can be uploaded."));
+    }
+    cb(null, true);
+  },
 });
 
 /* ============= API ROUTES ============= */
