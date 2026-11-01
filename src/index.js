@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import propertyRoutes from "./routes/property.routes.js";
 import virtualTourRoutes from "./routes/virtual-tour.routes.js";
 import MjekuRoutes from "./routes/mjeku.routes.js";
+import { authRoutes, requireAdminForWrites } from "./auth.js";
 
 dotenv.config();
 
@@ -55,6 +56,10 @@ app.options("*", cors(corsOptions));
 app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 /* --------------------------- routes --------------------------- */
+// Must come before the routes: blocks every data-changing request without an admin token.
+app.use(requireAdminForWrites);
+app.use("/api/Auth", authRoutes);
+
 // Match your .NET-style path: /api/Property/...
 app.use("/api/Property", propertyRoutes);
 app.use("/api/VirtualTour", virtualTourRoutes);
