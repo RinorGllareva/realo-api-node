@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "realo-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "realo-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../realo-vista-homes", "run", "dev"],
+      "port": 8080
+    }
+  ]
+}
