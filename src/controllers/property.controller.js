@@ -553,7 +553,11 @@ export async function DeleteProperty(req, res) {
 
   try {
     const pool = await getPool();
+    // Remove the 360° tour too (its rooms, panoramas and hotspots cascade from it);
+    // otherwise deleted properties leave large orphaned panorama data behind.
     await pool.request().input("id", sql.Int, id).query(`
+      IF OBJECT_ID('PropertyVirtualTours', 'U') IS NOT NULL
+        DELETE FROM PropertyVirtualTours WHERE PropertyId=@id;
       DELETE FROM PropertiesImage WHERE PropertyId=@id;
       DELETE FROM Properties WHERE PropertyId=@id;
     `);
