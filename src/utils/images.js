@@ -95,3 +95,79 @@ export async function remoteImageToRecord(imageUrl) {
     originalUrl: sourceUrl,
   };
 }
+
+// ---- Resized copies for the website (cards, map, gallery) ----
+// Originals are ~2400px JPEGs; pages ask for ?w=<width> and get a small WebP instead.
+// Resized copies are kept in memory (least recently used dropped first).
+
+const RESIZE_WIDTHS = [320, 480, 640, 960, 1280, 1600];
+const RESIZE_QUALITY = 74;
+const resizedCache = new Map(); // "imageId:width" -> Buffer
+const resizing = new Map(); // "imageId:width" -> Promise<Buffer>, so parallel requests share one resize
+let resizedCacheBytes = 0;
+
+function resizedCacheLimit() {
+  return Number(process.env.IMAGE_CACHE_MB || 150) * 1024 * 1024;
+}
+
+/** The smallest allowed width that covers the requested one, or null for the original. */
+export function resizeWidth(value) {
+  const requested = parseInt(value, 10);
+  if (!Number.isFinite(requested) || requested <= 0) return null;
+  return RESIZE_WIDTHS.find((w) => w >= requested) ?? RESIZE_WIDTHS[RESIZE_WIDTHS.length - 1];
+}
+
+function rememberResized(key, buffer) {
+  resizedCache.set(key, buffer);
+  resizedCacheBytes += buffer.length;
+  for (const [oldKey, oldBuffer] of resizedCache) {
+    if (resizedCacheBytes <= resizedCacheLimit()) break;
+    resizedCache.delete(oldKey);
+    resizedCacheBytes -= oldBuffer.length;
+  }
+}
+
+/**
+ * Returns a WebP of the image at the given width. `loadOriginal` is only called on a cache
+ * miss and must resolve to the original bytes (or null when the image does not exist).
+ */
+export async function resizedImage(imageId, width, loadOriginal) {
+  const key = `${imageId}:${width}`;
+  const cached = resizedCache.get(key);
+  if (cached) {
+    resizedCache.delete(key); // move to the newest end
+    resizedCache.set(key, cached);
+    return cached;
+  }
+  if (resizing.has(key)) return resizing.get(key);
+
+  const job = (async () => {
+    const original = await loadOriginal();
+    if (!original) return null;
+    const buffer = await sharp(Buffer.from(original), { failOn: "none" })
+      .rotate()
+      .resize({ width, withoutEnlargement: true })
+      .webp({ quality: RESIZE_QUALITY })
+      .toBuffer();
+    rememberResized(key, buffer);
+    return buffer;
+  })();
+  resizing.set(key, job);
+  try {
+    return await job;
+  } finally {
+    resizing.delete(key);
+  }
+}
+
+/** Drops the resized copies of an image whose bytes changed (e.g. after upscaling). */
+export function forgetResizedImage(imageId) {
+  for (const width of RESIZE_WIDTHS) {
+    const key = `${imageId}:${width}`;
+    const buffer = resizedCache.get(key);
+    if (buffer) {
+      resizedCache.delete(key);
+      resizedCacheBytes -= buffer.length;
+    }
+  }
+}

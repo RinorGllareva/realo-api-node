@@ -2,10 +2,13 @@ import { getPool, sql } from "../db/mssql.js";
 import { rowsToProperties } from "../utils/shape.js";
 import {
   apiOrigin,
+  forgetResizedImage,
   imageApiUrl,
   preferredImageUrl,
   processImageBuffer,
   remoteImageToRecord,
+  resizedImage,
+  resizeWidth,
 } from "../utils/images.js";
 
 const SITE_ORIGIN = process.env.PUBLIC_SITE_ORIGIN || "https://www.realo-realestate.com";
@@ -618,19 +621,63 @@ export async function GetPropertyMainImage(req, res) {
   }
 }
 
+async function loadImageRow(imageId) {
+  const pool = await getPool();
+  await ensureSchema(pool);
+  const result = await pool.request().input("imageId", sql.Int, imageId).query(`
+    SELECT TOP 1 ImageData, MimeType
+    FROM PropertiesImage
+    WHERE ImageId = @imageId
+  `);
+  return result.recordset[0] || null;
+}
+
+/**
+ * After startup, prepares the first photo of every property at the sizes cards and the map
+ * use, newest properties first, so those photos are served from memory straight away.
+ */
+export async function warmFirstImages(widths = [480, 960]) {
+  const pool = await getPool();
+  await ensureSchema(pool);
+  const result = await pool.request().query(`
+    SELECT ImageId FROM (
+      SELECT ImageId, PropertyId,
+             ROW_NUMBER() OVER (PARTITION BY PropertyId ORDER BY SortOrder ASC, ImageId ASC) AS Position
+      FROM PropertiesImage
+    ) first
+    WHERE Position = 1
+    ORDER BY PropertyId DESC
+  `);
+  let warmed = 0;
+  for (const { ImageId } of result.recordset) {
+    let original;
+    const loadOnce = async () => (original ??= (await loadImageRow(ImageId))?.ImageData);
+    try {
+      for (const width of widths) await resizedImage(ImageId, width, loadOnce);
+      warmed += 1;
+    } catch (err) {
+      console.warn(`Image warm-up skipped image ${ImageId}:`, err.message);
+    }
+  }
+  return warmed;
+}
+
 export async function GetPropertyImage(req, res) {
   const imageId = Number(req.params.imageId);
   if (!isValidId(imageId)) return res.status(400).json({ error: "Invalid imageId" });
 
   try {
-    const pool = await getPool();
-    await ensureSchema(pool);
-    const result = await pool.request().input("imageId", sql.Int, imageId).query(`
-      SELECT TOP 1 ImageData, MimeType
-      FROM PropertiesImage
-      WHERE ImageId = @imageId
-    `);
-    const row = result.recordset[0];
+    // ?w=<width> returns a small WebP for cards, the map and the gallery.
+    const width = resizeWidth(req.query.w);
+    if (width) {
+      const buffer = await resizedImage(imageId, width, async () => (await loadImageRow(imageId))?.ImageData);
+      if (!buffer) return res.status(404).json({ error: "Image not found" });
+      res.set("Content-Type", "image/webp");
+      res.set("Cache-Control", "public, max-age=31536000, immutable");
+      return res.send(buffer);
+    }
+
+    const row = await loadImageRow(imageId);
     if (!row || !row.ImageData) return res.status(404).json({ error: "Image not found" });
     res.set("Content-Type", row.MimeType || "image/jpeg");
     res.set("Cache-Control", "public, max-age=31536000, immutable");
@@ -690,6 +737,7 @@ export async function UpscalePropertyImage(req, res) {
             Height=@height
         WHERE ImageId=@imageId
       `);
+    forgetResizedImage(imageId);
 
     res.json({
       imageId,

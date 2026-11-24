@@ -7,6 +7,7 @@ import propertyRoutes from "./routes/property.routes.js";
 import virtualTourRoutes from "./routes/virtual-tour.routes.js";
 import MjekuRoutes from "./routes/mjeku.routes.js";
 import { authRoutes, requireAdminForWrites } from "./auth.js";
+import { warmFirstImages } from "./controllers/property.controller.js";
 
 dotenv.config();
 
@@ -90,4 +91,9 @@ const PORT = Number(process.env.PORT || 3000);
 // Bind on 0.0.0.0 for Render
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`API listening on http://0.0.0.0:${PORT}`);
+  if (process.env.IMAGE_WARMUP !== "false") {
+    warmFirstImages()
+      .then((count) => console.log(`Image warm-up: first photos of ${count} properties ready`))
+      .catch((err) => console.warn("Image warm-up failed:", err.message));
+  }
 });
